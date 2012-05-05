@@ -4,6 +4,8 @@ Simple library written while working through [@hmason](http://twitter.com/hmason
 learning class.  Can be used to do training and classification using the
 niave bayes algorithm.
 
+[Read the docs](http://rodnaph.github.com/bayes/)
+
 ## Usage
 
 ```clojure
