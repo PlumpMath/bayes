@@ -1,11 +1,10 @@
 
 (ns bayes.core
   (:require [clojure.string :as string]
-            [stout.porter-stemmer :as stout]
-            [clojure.java.io :as io]))
+            [stout.porter-stemmer :as stout]))
 
-(def ^:dynamic *feature-count* (ref {}))
-(def ^:dynamic *category-count* (ref {}))
+(def ^{:doc "This private def is used via binding to provide data
+  to the various functions." :dynamic true :private true} *data*)
 
 ;; # Text handling
 ;;
@@ -44,16 +43,16 @@
   (if (nil? val) 1
       (inc val)))
 
-(defn- ^{:doc "Uses a chunk of text that is for the specified category
+(defn ^{:doc "Uses a chunk of text that is for the specified category
   to add data to our scoring."}
-  train-category [category text]
-  (doseq [feature (features text)]
-    (dosync
-      (alter *feature-count*
-        #(update-in % [feature category] inc-if))))
-  (dosync
-    (alter *category-count*
-      #(update-in % [category] inc-if))))
+  train 
+  ([category text] (train category text {}))
+  ([category text data]
+    {:categories (update-in (:categories data) 
+                            [category] inc-if)
+     :features (reduce #(update-in %1 [%2 category] inc-if) 
+                        (:features data {}) 
+                        (features text))}))
 
 ;; # Classification
 ;;
@@ -64,13 +63,14 @@
 (defn- ^{:doc "Returns the features count for a particular category, or
   the default of 0.0 if it has not been scored at all."}
   feature-count [category feature]
-  (get-in @*feature-count* [feature category] 0.0))
+  (let [features (:features *data*)]
+    (get-in features [feature category] 0.0)))
 
 (defn- ^{:doc "As above, returns the number of times we've scored some
   text for category.  This allows balancing out of results if we've got
   more data trained for one category than another."}
   category-count [category]
-  (get-in @*category-count* [category] 0.0))
+  (get-in (:categories *data*) [category] 0.0))
 
 (defn- ^{:doc "Calculates the probability that a feature matches a
   category.  This is only a simple match before we can then take into
@@ -85,7 +85,7 @@
   (let [weight 1.0
         ap 0.5
         basic-prob (feature-probability category feature)
-        feat-total (->> (keys @*category-count*)
+        feat-total (->> (keys (:categories *data*))
                         (map #(feature-count % feature))
                         (reduce + 0))]
     (* acc
@@ -95,19 +95,21 @@
 
 (defn- ^{:doc "Returns weighted probability results for all the features
   in a piece of text."}
-  text-probability [text category]
+  text-probability [category text]
   (reduce (partial weighted-probability category) 1 (features text)))
 
 (defn- ^{:doc "Calculates the probability for a category match based
   on how much training data it has compared to other categories."}
   category-probability [category]
-  (/ (get @*category-count* category)
-     (reduce #(+ %1 (second %2)) 0 @*category-count*)))
+  (let [categories (:categories *data*)]
+    (/ (get categories category)
+       (reduce #(+ %1 (second %2)) 0 categories))))
 
 (defn ^{:doc "Calculate a probabalistic match for the text being about
   to the specified category."}
-  probability [category text]
-  (let [cat-prob (category-probability category)
-        txt-prob (text-probability text category)]
-    (* txt-prob cat-prob))) 
+  probability [category text data]
+  (binding [*data* data]
+    (let [cat-prob (category-probability category)
+          txt-prob (text-probability category text)]
+      (* txt-prob cat-prob))))
 
