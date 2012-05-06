@@ -3029,13 +3029,12 @@ net.brehaut.ClojureTools = (function (SH) {
   };
 })(SyntaxHighlighter);
 </script><title>bayes -- Marginalia</title></head><body><table><tr><td class="docs"><div class="header"><h1 class="project-name">bayes</h1><h2 class="project-version">0.0.1</h2><br /><p>Simple naive baysian analysis</p>
-</div><div class="dependencies"><h3>dependencies</h3><table><tr><td class="dep-name">org.clojure/clojure</td><td class="dotted"><hr /></td><td class="dep-version">1.3.0</td></tr><tr><td class="dep-name">stout</td><td class="dotted"><hr /></td><td class="dep-version">0.1.0</td></tr></table></div><div class="dependencies"><h3>dev dependencies</h3><table><tr><td class="dep-name">lein-marginalia</td><td class="dotted"><hr /></td><td class="dep-version">0.7.0</td></tr></table></div></td><td class="codes" style="text-align: center; vertical-align: middle;color: #666;padding-right:20px"><br /><br /><br />(this space intentionally left almost blank)</td></tr><tr><td class="docs"><div class="toc"><a name="toc"><h3>namespaces</h3></a><ul><li><a href="#bayes.core">bayes.core</a></li></ul></div></td><td class="codes">&nbsp;</td></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#bayes.core" name="bayes.core"><h1 class="project-name">bayes.core</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
+</div><div class="dependencies"><h3>dependencies</h3><table><tr><td class="dep-name">org.clojure/clojure</td><td class="dotted"><hr /></td><td class="dep-version">1.3.0</td></tr><tr><td class="dep-name">stout</td><td class="dotted"><hr /></td><td class="dep-version">0.1.0</td></tr></table></div><div class="dependencies"><h3>dev dependencies</h3><table><tr><td class="dep-name">lein-marginalia</td><td class="dotted"><hr /></td><td class="dep-version">0.7.0</td></tr></table></div></td><td class="codes" style="text-align: center; vertical-align: middle;color: #666;padding-right:20px"><br /><br /><br />(this space intentionally left almost blank)</td></tr><tr><td class="docs"><div class="toc"><a name="toc"><h3>namespaces</h3></a><ul><li><a href="#bayes.core">bayes.core</a></li><li><a href="#bayes.example">bayes.example</a></li></ul></div></td><td class="codes">&nbsp;</td></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#bayes.core" name="bayes.core"><h1 class="project-name">bayes.core</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(ns bayes.core
   (:require [clojure.string :as string]
-            [stout.porter-stemmer :as stout]
-            [clojure.java.io :as io]))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(def ^:dynamic *feature-count* (ref {}))
-(def ^:dynamic *category-count* (ref {}))</pre></td></tr><tr><td class="docs"><h1>Text handling</h1>
+            [stout.porter-stemmer :as stout]))</pre></td></tr><tr><td class="docs"><p>This private def is used via binding to provide data
+  to the various functions.</p>
+</td><td class="codes"><pre class="brush: clojure">(def ^{:doc  :dynamic true :private true} *data*)</pre></td></tr><tr><td class="docs"><h1>Text handling</h1>
 
 <p>Here we handle the process of taking some text and breaking it
 apart into only the features that we think will be useful in
@@ -3069,15 +3068,15 @@ for text against those same categories.</p>
   (if (nil? val) 1
       (inc val)))</pre></td></tr><tr><td class="docs"><p>Uses a chunk of text that is for the specified category
   to add data to our scoring.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn- 
-  train-category [category text]
-  (doseq [feature (features text)]
-    (dosync
-      (alter *feature-count*
-        #(update-in % [feature category] inc-if))))
-  (dosync
-    (alter *category-count*
-      #(update-in % [category] inc-if))))</pre></td></tr><tr><td class="docs"><h1>Classification</h1>
+</td><td class="codes"><pre class="brush: clojure">(defn 
+  train 
+  ([category text] (train category text {}))
+  ([category text data]
+    {:categories (update-in (:categories data) 
+                            [category] inc-if)
+     :features (reduce #(update-in %1 [%2 category] inc-if) 
+                        (:features data {}) 
+                        (features text))}))</pre></td></tr><tr><td class="docs"><h1>Classification</h1>
 
 <p>When the system has been trained with some data we can then use
 those scores to apply the Naive Bayes algorithm for matching text
@@ -3086,12 +3085,13 @@ to trained categories.</p>
   the default of 0.0 if it has not been scored at all.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn- 
   feature-count [category feature]
-  (get-in @*feature-count* [feature category] 0.0))</pre></td></tr><tr><td class="docs"><p>As above, returns the number of times we've scored some
+  (let [features (:features *data*)]
+    (get-in features [feature category] 0.0)))</pre></td></tr><tr><td class="docs"><p>As above, returns the number of times we've scored some
   text for category.  This allows balancing out of results if we've got
   more data trained for one category than another.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn- 
   category-count [category]
-  (get-in @*category-count* [category] 0.0))</pre></td></tr><tr><td class="docs"><p>Calculates the probability that a feature matches a
+  (get-in (:categories *data*) [category] 0.0))</pre></td></tr><tr><td class="docs"><p>Calculates the probability that a feature matches a
   category.  This is only a simple match before we can then take into
   account a more balanced match looking at scores for other categories.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn- 
@@ -3104,7 +3104,7 @@ to trained categories.</p>
   (let [weight 1.0
         ap 0.5
         basic-prob (feature-probability category feature)
-        feat-total (-&gt;&gt; (keys @*category-count*)
+        feat-total (-&gt;&gt; (keys (:categories *data*))
                         (map #(feature-count % feature))
                         (reduce + 0))]
     (* acc
@@ -3113,17 +3113,40 @@ to trained categories.</p>
           (+ weight feat-total)))))</pre></td></tr><tr><td class="docs"><p>Returns weighted probability results for all the features
   in a piece of text.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn- 
-  text-probability [text category]
+  text-probability [category text]
   (reduce (partial weighted-probability category) 1 (features text)))</pre></td></tr><tr><td class="docs"><p>Calculates the probability for a category match based
   on how much training data it has compared to other categories.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn- 
   category-probability [category]
-  (/ (get @*category-count* category)
-     (reduce #(+ %1 (second %2)) 0 @*category-count*)))</pre></td></tr><tr><td class="docs"><p>Calculate a probabalistic match for the text being about
+  (let [categories (:categories *data*)]
+    (/ (get categories category)
+       (reduce #(+ %1 (second %2)) 0 categories))))</pre></td></tr><tr><td class="docs"><p>Calculate a probabalistic match for the text being about
   to the specified category.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn 
-  probability [category text]
-  (let [cat-prob (category-probability category)
-        txt-prob (text-probability text category)]
-    (* txt-prob cat-prob))) </pre></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr></table><div class="footer">Generated by <a href="https://github.com/fogus/marginalia">Marginalia</a>.&nbsp;&nbsp;Syntax highlighting provided by Alex Gorbatchev's <a href="http://alexgorbatchev.com/SyntaxHighlighter/">SyntaxHighlighter</a></div><script type="text/javascript">SyntaxHighlighter.defaults['gutter'] = false;
+  probability [category text data]
+  (binding [*data* data]
+    (let [cat-prob (category-probability category)
+          txt-prob (text-probability category text)]
+      (* txt-prob cat-prob))))</pre></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#bayes.example" name="bayes.example"><h1 class="project-name">bayes.example</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(ns bayes.example
+  (:require [bayes.core :as bayes]
+            [clojure.java.io :as io]))</pre></td></tr><tr><td class="docs"><p>This function is to be used as part of a reduction to
+  load data for a category from a single-line data file. The data files
+  are expected to be in data/ and named after the category. (eg. 'data/sports')</p>
+</td><td class="codes"><pre class="brush: clojure">(defn- 
+  to-training-data [acc category]
+  (let [lines (line-seq (io/reader (str &quot;data/&quot; category)))]
+    (reduce #(bayes/train category %2 %1) acc lines)))</pre></td></tr><tr><td class="docs"><p>This function loads data for all categories we've got some
+  canned training data for and returns it.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn- 
+  load-training-data []
+  (reduce to-training-data {} [&quot;sports&quot; &quot;arts&quot;]))</pre></td></tr><tr><td class="docs"><p>This main method allows running the example from Leiningen:
+    lein run</p>
+</td><td class="codes"><pre class="brush: clojure">(defn 
+  -main[]
+  (let [data (load-training-data)
+        text &quot;Dustin Johnson wound up with another bizarre penalty Thursday when his caddie thought his tee time was 40 minutes later than it was, and he raced to the first tee at the Northern Trust Open in Los Angeles to avoid disqualification. Johnson was given a two-shot penalty for not being on the tee box at his starting time. Players then have five minutes&quot;]
+    (println &quot;&gt;&gt; &quot; text)
+    (println &quot;Sports: &quot; (bayes/probability &quot;sports&quot; text data))
+    (println &quot;Arts: &quot; (bayes/probability &quot;arts&quot; text data))))</pre></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr></table><div class="footer">Generated by <a href="https://github.com/fogus/marginalia">Marginalia</a>.&nbsp;&nbsp;Syntax highlighting provided by Alex Gorbatchev's <a href="http://alexgorbatchev.com/SyntaxHighlighter/">SyntaxHighlighter</a></div><script type="text/javascript">SyntaxHighlighter.defaults['gutter'] = false;
        SyntaxHighlighter.all()</script></body></html>
