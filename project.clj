@@ -1,5 +1,5 @@
 
-(defproject bayes "0.0.1"
+(defproject bayes "0.0.2"
   :description "Simple naive baysian analysis"
   :dependencies [[org.clojure/clojure "1.3.0"]
                  [stout "0.1.0"]]

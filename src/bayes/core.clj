@@ -101,9 +101,10 @@
 (defn- ^{:doc "Calculates the probability for a category match based
   on how much training data it has compared to other categories."}
   category-probability [category]
-  (let [categories (:categories *data*)]
-    (/ (get categories category)
-       (reduce #(+ %1 (second %2)) 0 categories))))
+  (let [categories (:categories *data*)
+        score (get categories category)]
+    (if (= 0 score) 0
+        (/ score (reduce #(+ %1 (second %2)) 0 categories)))))
 
 (defn ^{:doc "Calculate a probabalistic match for the text being about
   to the specified category."}
